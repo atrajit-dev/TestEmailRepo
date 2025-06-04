@@ -3,14 +3,14 @@ name: Email on Commit
 on:
   push:
     branches:
-      - main
+      - main  # Change if you use another default branch
 
 jobs:
   send-email:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Set up Python
@@ -18,10 +18,10 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install requirements
+      - name: Install Email Library
         run: pip install yagmail
 
-      - name: Get commit metadata and changed files
+      - name: Get Commit Metadata and Changed Files
         id: meta
         run: |
           echo "FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | paste -sd ',' -)" >> $GITHUB_OUTPUT
@@ -41,7 +41,6 @@ jobs:
           user = os.environ["EMAIL_USER"]
           password = os.environ["EMAIL_PASS"]
           recipients_raw = os.environ["EMAIL_RECIPIENTS"]
-
           recipients = [r.strip() for r in recipients_raw.split(",") if r.strip()]
 
           repo = os.environ["GITHUB_REPOSITORY"]
@@ -52,6 +51,7 @@ jobs:
           timestamp = "${{ steps.meta.outputs.TIMESTAMP }}"
 
           if not files or files == ['']:
+              print("🛑 No files changed, exiting.")
               exit(0)
 
           raw_links = [
@@ -73,6 +73,16 @@ jobs:
           <p><em>This is an automated notification from GitHub Actions.</em></p>
           """
 
-          yag = yagmail.SMTP(user=user, password=password)
-          yag.send(to=recipients, subject=f"GitHub Commit Update: {repo}", contents=html_body)
+          print("📬 Prepared to send email to:", recipients)
+          print("✉️ Subject:", f"GitHub Commit Update: {repo}")
+          print("📄 Files to be included:")
+          for file, link in zip(files, raw_links):
+              print(f"  - {file}: {link}")
+
+          try:
+              yag = yagmail.SMTP(user=user, password=password)
+              yag.send(to=recipients, subject=f"GitHub Commit Update: {repo}", contents=html_body)
+              print("✅ Email sent successfully!")
+          except Exception as e:
+              print("❌ Failed to send email:", str(e))
         shell: python
