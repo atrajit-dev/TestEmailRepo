@@ -1,0 +1,75 @@
+name: Email on Commit
+
+on:
+  push:
+    branches:
+      - main  # Or your default branch
+
+jobs:
+  send-email:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install requirements
+        run: pip install yagmail
+
+      - name: Get commit metadata and changed files
+        id: meta
+        run: |
+          echo "FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | paste -sd ',' -)" >> $GITHUB_OUTPUT
+          echo "COMMIT_MESSAGE=$(git log -1 --pretty=%B)" >> $GITHUB_OUTPUT
+          echo "AUTHOR=$(git log -1 --pretty=format:'%an')" >> $GITHUB_OUTPUT
+          echo "TIMESTAMP=$(git log -1 --pretty=format:'%cd' --date=iso)" >> $GITHUB_OUTPUT
+
+      - name: Send Email
+        env:
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+        run: |
+          import os
+          import yagmail
+
+          user = os.environ["EMAIL_USER"]
+          password = os.environ["EMAIL_PASS"]
+          recipient = "usatest45@gmail.com"
+
+          repo = os.environ["GITHUB_REPOSITORY"]
+          commit = os.environ["GITHUB_SHA"]
+          files = "${{ steps.meta.outputs.FILES }}".split(',')
+          message = """${{ steps.meta.outputs.COMMIT_MESSAGE }}""".strip()
+          author = "${{ steps.meta.outputs.AUTHOR }}"
+          timestamp = "${{ steps.meta.outputs.TIMESTAMP }}"
+
+          if not files or files == ['']:
+              exit(0)
+
+          raw_links = [
+              f"https://raw.githubusercontent.com/{repo}/{commit}/{file}" for file in files
+          ]
+
+          list_items = "\n".join(
+              f"<li><strong>{file}</strong>: <a href='{url}'>{url}</a></li>"
+              for file, url in zip(files, raw_links)
+          )
+
+          html_body = f"""
+          <h2>🚀 New Commit in <code>{repo}</code></h2>
+          <p><strong>Author:</strong> {author}<br>
+             <strong>Date:</strong> {timestamp}<br>
+             <strong>Message:</strong> {message}</p>
+          <h3>📂 Changed Files:</h3>
+          <ul>{list_items}</ul>
+          <p><em>This is an automated notification from GitHub Actions.</em></p>
+          """
+
+          yag = yagmail.SMTP(user=user, password=password)
+          yag.send(to=recipient, subject=f"GitHub Commit Update: {repo}", contents=html_body)
+        shell: python
