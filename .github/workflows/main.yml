@@ -165,6 +165,8 @@ jobs:
               commit_message=html.escape(commit_message),
               list_items_html=list_items_html
           )
+          # Fix doubled curly braces for CSS
+          html_body = html_body.replace('{{', '{').replace('}}', '}')
 
           email_subject = f"🚀 Commit Update: {repo_full_name} - {commit_subject_line[:60]}"
           if len(commit_subject_line) > 60:
