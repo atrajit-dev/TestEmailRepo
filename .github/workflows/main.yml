@@ -42,7 +42,7 @@ jobs:
           COMMIT_AUTHOR_STR: ${{ env.COMMIT_AUTHOR_STR }}
           COMMIT_TIMESTAMP_STR: ${{ env.COMMIT_TIMESTAMP_STR }}
         run: |
-          python <<EOF
+          python - <<EOF
 import os
 import yagmail
 import html
