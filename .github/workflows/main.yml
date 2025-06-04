@@ -37,6 +37,7 @@ jobs:
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
           EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
           EMAIL_RECIPIENTS: ${{ secrets.EMAIL_RECIPIENTS }}
+          EMAIL_HTML_TEMPLATE: ${{ secrets.EMAIL_HTML_TEMPLATE }}
           COMMIT_FILES_STR: ${{ env.COMMIT_FILES_STR }}
           COMMIT_MESSAGE_STR: ${{ env.COMMIT_MESSAGE_STR }}
           COMMIT_AUTHOR_STR: ${{ env.COMMIT_AUTHOR_STR }}
@@ -75,35 +76,24 @@ jobs:
           file_blob_links = [f"{server_url}/{repo_full_name}/blob/{commit_sha}/{file}" for file in changed_files]
 
           if changed_files:
-              list_items_html = "\n".join(
-                  f"""<li style="margin-bottom: 10px; padding: 10px; background-color: #f8f9fa; border-radius: 5px; border-left: 4px solid #007bff; display: flex; align-items: center;">
-                         <a href='{blob_url}' style="text-decoration: none; color: #0056b3; font-weight: 500; font-size: 15px; word-break: break-all;" target="_blank" rel="noopener noreferrer">{file_name}</a>
-                     </li>"""
+              list_items_html = "\\n".join(
+                  f"""<li style='margin-bottom:8px;'><a href='{blob_url}' style='color:#0969da;text-decoration:none;'>{file_name}</a></li>"""
                   for file_name, blob_url in zip(changed_files, file_blob_links)
               )
           else:
-              list_items_html = "<li style='padding: 10px; background-color: #f8f9fa; border-radius: 5px; color: #555;'>No files were changed in this commit.</li>"
+              list_items_html = "<li style='color:#555;'>No files were changed in this commit.</li>"
 
-          html_body = f"""<!DOCTYPE html>
-          <html lang="en">
-          <head>
-          <meta charset="UTF-8"><style>body{{margin:0}}</style>
-          </head>
-          <body>
-          <table><tr><td>
-          <h1>🚀 New Commit Published</h1>
-          <p><strong>Repository:</strong> {repo_full_name}</p>
-          <p><strong>Author:</strong> {commit_author}</p>
-          <p><strong>Date:</strong> {commit_timestamp}</p>
-          <p><strong>SHA:</strong> <a href="{server_url}/{repo_full_name}/commit/{commit_sha}">{commit_sha[:12]}...</a></p>
-          <p><strong>Commit Message:</strong></p>
-          <pre>{html.escape(commit_message)}</pre>
-          <h2>📂 Changed Files</h2>
-          <ul>{list_items_html}</ul>
-          <p><a href="{server_url}/{repo_full_name}/commit/{commit_sha}">View Commit Details</a></p>
-          </td></tr></table>
-          </body>
-          </html>"""
+          # Load HTML template from secret and format it
+          html_template = os.environ["EMAIL_HTML_TEMPLATE"]
+          html_body = html_template.format(
+              repo_full_name=repo_full_name,
+              commit_author=commit_author,
+              commit_timestamp=commit_timestamp,
+              commit_sha=commit_sha,
+              server_url=server_url,
+              commit_message=html.escape(commit_message),
+              list_items_html=list_items_html
+          )
 
           email_subject = f"🚀 Commit Update: {repo_full_name} - {commit_subject_line[:60]}"
           if len(commit_subject_line) > 60:
