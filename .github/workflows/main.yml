@@ -43,79 +43,79 @@ jobs:
           COMMIT_TIMESTAMP_STR: ${{ env.COMMIT_TIMESTAMP_STR }}
         run: |
           python - <<EOF
-import os
-import yagmail
-import html
+          import os
+          import yagmail
+          import html
 
-user = os.environ["EMAIL_USER"]
-password = os.environ["EMAIL_PASS"]
-recipients_raw = os.environ["EMAIL_RECIPIENTS"]
-recipients = [r.strip() for r in recipients_raw.split(",") if r.strip()]
+          user = os.environ["EMAIL_USER"]
+          password = os.environ["EMAIL_PASS"]
+          recipients_raw = os.environ["EMAIL_RECIPIENTS"]
+          recipients = [r.strip() for r in recipients_raw.split(",") if r.strip()]
 
-if not recipients:
-    print("🛑 No recipients configured, exiting.")
-    exit(0)
-if not user or not password:
-    print("🛑 Email credentials (EMAIL_USER or EMAIL_PASS) not set, exiting.")
-    exit(1)
+          if not recipients:
+              print("🛑 No recipients configured, exiting.")
+              exit(0)
+          if not user or not password:
+              print("🛑 Email credentials (EMAIL_USER or EMAIL_PASS) not set, exiting.")
+              exit(1)
 
-repo_full_name = os.environ.get("GITHUB_REPOSITORY", "unknown/repo")
-commit_sha = os.environ.get("GITHUB_SHA", "unknownsha")
-server_url = os.environ.get("GITHUB_SERVER_URL", "https://github.com")
+          repo_full_name = os.environ.get("GITHUB_REPOSITORY", "unknown/repo")
+          commit_sha = os.environ.get("GITHUB_SHA", "unknownsha")
+          server_url = os.environ.get("GITHUB_SERVER_URL", "https://github.com")
 
-files_str = os.environ.get("COMMIT_FILES_STR", "")
-commit_message_raw = os.environ.get("COMMIT_MESSAGE_STR", "No commit message found.")
-commit_author = os.environ.get("COMMIT_AUTHOR_STR", "N/A")
-commit_timestamp = os.environ.get("COMMIT_TIMESTAMP_STR", "N/A")
+          files_str = os.environ.get("COMMIT_FILES_STR", "")
+          commit_message_raw = os.environ.get("COMMIT_MESSAGE_STR", "No commit message found.")
+          commit_author = os.environ.get("COMMIT_AUTHOR_STR", "N/A")
+          commit_timestamp = os.environ.get("COMMIT_TIMESTAMP_STR", "N/A")
 
-commit_message = commit_message_raw.strip()
-commit_subject_line = commit_message.splitlines()[0] if commit_message.splitlines() else "N/A"
+          commit_message = commit_message_raw.strip()
+          commit_subject_line = commit_message.splitlines()[0] if commit_message.splitlines() else "N/A"
 
-changed_files = [f.strip() for f in files_str.split(',') if f.strip()]
-file_blob_links = [f"{server_url}/{repo_full_name}/blob/{commit_sha}/{file}" for file in changed_files]
+          changed_files = [f.strip() for f in files_str.split(',') if f.strip()]
+          file_blob_links = [f"{server_url}/{repo_full_name}/blob/{commit_sha}/{file}" for file in changed_files]
 
-if changed_files:
-    list_items_html = "\n".join(
-        f"""<li style="margin-bottom: 10px; padding: 10px; background-color: #f8f9fa; border-radius: 5px; border-left: 4px solid #007bff; display: flex; align-items: center;">
-               <a href='{blob_url}' style="text-decoration: none; color: #0056b3; font-weight: 500; font-size: 15px; word-break: break-all;" target="_blank" rel="noopener noreferrer">{file_name}</a>
-           </li>"""
-        for file_name, blob_url in zip(changed_files, file_blob_links)
-    )
-else:
-    list_items_html = "<li style='padding: 10px; background-color: #f8f9fa; border-radius: 5px; color: #555;'>No files were changed in this commit.</li>"
+          if changed_files:
+              list_items_html = "\n".join(
+                  f"""<li style="margin-bottom: 10px; padding: 10px; background-color: #f8f9fa; border-radius: 5px; border-left: 4px solid #007bff; display: flex; align-items: center;">
+                         <a href='{blob_url}' style="text-decoration: none; color: #0056b3; font-weight: 500; font-size: 15px; word-break: break-all;" target="_blank" rel="noopener noreferrer">{file_name}</a>
+                     </li>"""
+                  for file_name, blob_url in zip(changed_files, file_blob_links)
+              )
+          else:
+              list_items_html = "<li style='padding: 10px; background-color: #f8f9fa; border-radius: 5px; color: #555;'>No files were changed in this commit.</li>"
 
-html_body = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8"><style>body{{margin:0}}</style>
-</head>
-<body>
-<table><tr><td>
-<h1>🚀 New Commit Published</h1>
-<p><strong>Repository:</strong> {repo_full_name}</p>
-<p><strong>Author:</strong> {commit_author}</p>
-<p><strong>Date:</strong> {commit_timestamp}</p>
-<p><strong>SHA:</strong> <a href="{server_url}/{repo_full_name}/commit/{commit_sha}">{commit_sha[:12]}...</a></p>
-<p><strong>Commit Message:</strong></p>
-<pre>{html.escape(commit_message)}</pre>
-<h2>📂 Changed Files</h2>
-<ul>{list_items_html}</ul>
-<p><a href="{server_url}/{repo_full_name}/commit/{commit_sha}">View Commit Details</a></p>
-</td></tr></table>
-</body>
-</html>"""
+          html_body = f"""<!DOCTYPE html>
+          <html lang="en">
+          <head>
+          <meta charset="UTF-8"><style>body{{margin:0}}</style>
+          </head>
+          <body>
+          <table><tr><td>
+          <h1>🚀 New Commit Published</h1>
+          <p><strong>Repository:</strong> {repo_full_name}</p>
+          <p><strong>Author:</strong> {commit_author}</p>
+          <p><strong>Date:</strong> {commit_timestamp}</p>
+          <p><strong>SHA:</strong> <a href="{server_url}/{repo_full_name}/commit/{commit_sha}">{commit_sha[:12]}...</a></p>
+          <p><strong>Commit Message:</strong></p>
+          <pre>{html.escape(commit_message)}</pre>
+          <h2>📂 Changed Files</h2>
+          <ul>{list_items_html}</ul>
+          <p><a href="{server_url}/{repo_full_name}/commit/{commit_sha}">View Commit Details</a></p>
+          </td></tr></table>
+          </body>
+          </html>"""
 
-email_subject = f"🚀 Commit Update: {repo_full_name} - {commit_subject_line[:60]}"
-if len(commit_subject_line) > 60:
-    email_subject += "..."
+          email_subject = f"🚀 Commit Update: {repo_full_name} - {commit_subject_line[:60]}"
+          if len(commit_subject_line) > 60:
+              email_subject += "..."
 
-try:
-    yag = yagmail.SMTP(user=user, password=password)
-    yag.send(to=recipients, subject=email_subject, contents=html_body)
-    print("✅ Email sent successfully!")
-except Exception as e:
-    print(f"❌ Failed to send email: {str(e)}")
-    import traceback
-    traceback.print_exc()
-    exit(1)
-EOF
+          try:
+              yag = yagmail.SMTP(user=user, password=password)
+              yag.send(to=recipients, subject=email_subject, contents=html_body)
+              print("✅ Email sent successfully!")
+          except Exception as e:
+              print(f"❌ Failed to send email: {str(e)}")
+              import traceback
+              traceback.print_exc()
+              exit(1)
+          EOF
