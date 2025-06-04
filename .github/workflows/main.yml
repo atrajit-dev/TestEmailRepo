@@ -3,7 +3,7 @@ name: Email on Commit
 on:
   push:
     branches:
-      - main  # Change if you use another default branch
+      - main  # or change to your default branch
 
 jobs:
   send-email:
@@ -12,19 +12,21 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Ensures full commit history for accurate diff
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install Email Library
+      - name: Install yagmail
         run: pip install yagmail
 
       - name: Get Commit Metadata and Changed Files
         id: meta
         run: |
-          echo "FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | paste -sd ',' -)" >> $GITHUB_OUTPUT
+          echo "FILES=$(git show --pretty='' --name-only | paste -sd ',' -)" >> $GITHUB_OUTPUT
           echo "COMMIT_MESSAGE=$(git log -1 --pretty=%B)" >> $GITHUB_OUTPUT
           echo "AUTHOR=$(git log -1 --pretty=format:'%an')" >> $GITHUB_OUTPUT
           echo "TIMESTAMP=$(git log -1 --pretty=format:'%cd' --date=iso)" >> $GITHUB_OUTPUT
