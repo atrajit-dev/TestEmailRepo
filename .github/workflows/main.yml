@@ -1,3 +1,5 @@
+
+
 name: Email on Commit
 
 on:
@@ -24,115 +26,120 @@ jobs:
         run: pip install yagmail
 
       - name: Get Commit Metadata and Changed Files
+        id: commit_data
         run: |
           echo "COMMIT_FILES_STR=$(git show --pretty='' --name-only HEAD | paste -sd ',' -)" >> $GITHUB_ENV
-          echo "COMMIT_MESSAGE_STR<<EOF" >> $GITHUB_ENV
+          # Use EOF markers that are unlikely to appear in the commit message
+          EOF_MARKER=$(openssl rand -hex 16)
+          echo "COMMIT_MESSAGE_STR<<$EOF_MARKER" >> $GITHUB_ENV
           git log -1 --pretty=%B HEAD >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+          echo "$EOF_MARKER" >> $GITHUB_ENV
           echo "COMMIT_AUTHOR_STR=$(git log -1 --pretty=format:'%an' HEAD)" >> $GITHUB_ENV
-          echo "COMMIT_TIMESTAMP_STR=$(git log -1 --pretty=format:'%ad' --date=format:'%Y-%m-%d %H:%M:%S %Z' HEAD)" >> $GITHUB_ENV
+          # Format timestamp as required by the design (e.g., Jun 04 2025 10:20 UTC)
+          echo "COMMIT_TIMESTAMP_STR=$(git log -1 --pretty=format:'%ad' --date=format:'%b %d %Y %H:%M %Z' HEAD)" >> $GITHUB_ENV
+          echo "COMMIT_SHA_SHORT_STR=$(git log -1 --pretty=format:'%h' HEAD)" >> $GITHUB_ENV # Short SHA
 
       - name: Send Email
         env:
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
           EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
           EMAIL_RECIPIENTS: ${{ secrets.EMAIL_RECIPIENTS }}
+          GITHUB_SERVER_URL: ${{ env.GITHUB_SERVER_URL }}
+          GITHUB_REPOSITORY: ${{ env.GITHUB_REPOSITORY }}
+          GITHUB_SHA: ${{ env.GITHUB_SHA }}
+          COMMIT_FILES_STR: ${{ env.COMMIT_FILES_STR }}
+          COMMIT_MESSAGE_STR: ${{ env.COMMIT_MESSAGE_STR }}
+          COMMIT_AUTHOR_STR: ${{ env.COMMIT_AUTHOR_STR }}
+          COMMIT_TIMESTAMP_STR: ${{ env.COMMIT_TIMESTAMP_STR }}
+          COMMIT_SHA_SHORT_STR: ${{ env.COMMIT_SHA_SHORT_STR }}
           EMAIL_HTML_TEMPLATE: |
             <!DOCTYPE html>
             <html lang="en">
             <head>
               <meta charset="UTF-8">
               <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <title>New Commit Notification</title>
+              <title>Commit Notification</title>
               <style>
-                body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f9f9f9; margin: 0; padding: 0; color: #333; line-height: 1.6; }}
-                .container {{ max-width: 600px; margin: 40px auto; background: #ffffff; border-radius: 8px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1); padding: 30px; }}
-                .header {{ display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #f0f0f0; padding-bottom: 20px; margin-bottom: 25px; }}
-                .logo-container {{ display: flex; align-items: center; }}
-                .logo-container img {{ height: 40px; margin-right: 15px; }}
-                .company-logo {{ height: 40px; border-radius: 6px; }}
-                .repo {{ font-size: 1.4em; color: #0366d6; font-weight: 600; }}
-                .meta {{ color: #586069; font-size: 0.95em; margin-bottom: 20px; background-color: #f6f8fa; padding: 12px; border-radius: 6px; }}
-                .meta a {{ color: #0366d6; text-decoration: none; }}
-                .meta a:hover {{ text-decoration: underline; }}
-                .commit-msg {{ background: #f6f8fa; border-radius: 6px; padding: 15px; font-family: 'Courier New', monospace; color: #24292e; border-left: 4px solid #0366d6; margin-bottom: 20px; }}
-                .section-title {{ color: #24292e; border-bottom: 1px solid #eaecef; padding-bottom: 8px; margin-top: 25px; }}
-                .files-list {{ margin: 0; padding: 0 0 0 20px; }}
-                .files-list li {{ margin-bottom: 10px; }}
-                .files-list li a {{ color: #0366d6; text-decoration: none; }}
-                .files-list li a:hover {{ text-decoration: underline; }}
-                .cta-btn {{ display: inline-block; margin-top: 25px; background: #2ea44f; color: #fff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 500; text-align: center; }}
-                .cta-btn:hover {{ background: #2c974b; }}
-                .footer {{ margin-top: 35px; text-align: center; color: #6a737d; font-size: 0.9em; padding-top: 20px; border-top: 1px solid #eaecef; }}
-                .footer img {{ height: 20px; vertical-align: middle; margin-right: 5px; }}
-                @media only screen and (max-width: 620px) {{
-                  .container {{ width: 100%; margin: 0; border-radius: 0; }}
-                  .header {{ flex-direction: column; align-items: flex-start; }}
-                  .logo-container {{ margin-bottom: 15px; }}
-                }}
+                body {{ margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji"; background-color: #f6f8fa; }}
+                .container {{ max-width: 600px; margin: 30px auto; background-color: #ffffff; border: 1px solid #e1e4e8; border-radius: 6px; overflow: hidden; }}
+                .header {{ display: flex; align-items: center; justify-content: space-between; padding: 16px; border-bottom: 1px solid #e1e4e8; background-color: #f6f8fa; }}
+                .header-left {{ display: flex; align-items: center; }}
+                .github-logo {{ height: 24px; width: 24px; margin-right: 8px; vertical-align: middle; }}
+                .repo-name {{ font-size: 16px; font-weight: 600; color: #0366d6; text-decoration: none; vertical-align: middle; }}
+                .repo-name:hover {{ text-decoration: underline; }}
+                .placeholder-logo {{ height: 32px; width: 32px; /* Adjust size as needed */ }}
+                .content {{ padding: 24px; }}
+                .meta-box {{ background-color: #f6f8fa; border: 1px solid #e1e4e8; border-radius: 6px; padding: 12px 16px; margin-bottom: 20px; font-size: 13px; color: #586069; line-height: 1.6; }}
+                .meta-box strong {{ color: #24292e; }}
+                .section-title {{ font-size: 16px; font-weight: 600; color: #24292e; margin-top: 24px; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #eaecef; }}
+                .commit-message-box {{ background-color: #f6f8fa; border: 1px solid #e1e4e8; border-left: 4px solid #0366d6; border-radius: 0 6px 6px 0; padding: 12px 16px; margin-bottom: 20px; font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace; font-size: 13px; color: #24292e; white-space: pre-wrap; word-wrap: break-word; }}
+                .files-list {{ list-style: none; padding-left: 0; margin-top: 8px; margin-bottom: 20px; }}
+                .files-list li {{ margin-bottom: 6px; font-size: 14px; }}
+                .files-list a {{ color: #0366d6; text-decoration: none; }}
+                .files-list a:hover {{ text-decoration: underline; }}
+                .folder-icon {{ display: inline-block; width: 16px; height: 16px; margin-right: 6px; vertical-align: text-bottom; /* Adjust alignment */ font-size: 16px; /* Use emoji size */ }}
+                .cta-button {{ display: inline-block; background-color: #2ea44f; color: #ffffff; font-size: 14px; font-weight: 500; line-height: 20px; padding: 10px 20px; border: 1px solid rgba(27, 31, 35, 0.15); border-radius: 6px; text-decoration: none; text-align: center; cursor: pointer; }}
+                .cta-button:hover {{ background-color: #2c974b; text-decoration: none; }}
+                .footer {{ margin-top: 24px; padding-top: 16px; border-top: 1px solid #e1e4e8; text-align: center; font-size: 12px; color: #586069; }}
+                .footer-logo {{ height: 16px; width: 16px; vertical-align: middle; margin-right: 4px; }}
               </style>
             </head>
             <body>
               <div class="container">
                 <div class="header">
-                  <div class="logo-container">
-                    <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub" />
-                    <span class="repo">{repo_full_name}</span>
+                  <div class="header-left">
+                    <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub Logo" class="github-logo">
+                    <a href="{server_url}/{repo_full_name}" class="repo-name">{repo_full_name}</a>
                   </div>
-                  <img class="company-logo" src="https://avatars.githubusercontent.com/atrajit-dev" alt="Your Logo" />
+                  <!-- Placeholder for the purple logo. Replace src with the actual URL -->
+                  <img src="https://via.placeholder.com/40x40/8A2BE2/FFFFFF?text=LOGO" alt="Logo" class="placeholder-logo">
                 </div>
-                
-                <div class="meta">
-                  <strong>Author:</strong> {commit_author} &nbsp;|&nbsp;
-                  <strong>Date:</strong> {commit_timestamp} <br>
-                  <strong>SHA:</strong> <a href="{server_url}/{repo_full_name}/commit/{commit_sha}">{commit_sha}</a>
-                </div>
-                
-                <div>
+                <div class="content">
+                  <div class="meta-box">
+                    <strong>Author:</strong> {commit_author} &nbsp;|&nbsp; <strong>Date:</strong> {commit_timestamp}<br>
+                    <strong>SHA:</strong> {commit_sha_short}
+                  </div>
+
                   <h3 class="section-title">Commit Message</h3>
-                  <div class="commit-msg">{commit_message}</div>
-                </div>
-                
-                <div>
-                  <h3 class="section-title">📂 Changed Files</h3>
+                  <div class="commit-message-box">{commit_message}</div>
+
+                  <h3 class="section-title"><span class="folder-icon">📂</span> Changed Files</h3>
                   <ul class="files-list">
                     {list_items_html}
                   </ul>
-                </div>
-                
-                <a class="cta-btn" href="{server_url}/{repo_full_name}/commit/{commit_sha}">View Commit on GitHub</a>
-                
-                <div class="footer">
-                  <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub" />
-                  This is an automated notification from your GitHub Actions workflow.
+
+                  <a href="{server_url}/{repo_full_name}/commit/{commit_sha}" class="cta-button">View Commit on GitHub</a>
+
+                  <div class="footer">
+                    <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub Logo" class="footer-logo">
+                    This is an automated notification from your GitHub Actions workflow.
+                  </div>
                 </div>
               </div>
             </body>
             </html>
-          COMMIT_FILES_STR: ${{ env.COMMIT_FILES_STR }}
-          COMMIT_MESSAGE_STR: ${{ env.COMMIT_MESSAGE_STR }}
-          COMMIT_AUTHOR_STR: ${{ env.COMMIT_AUTHOR_STR }}
-          COMMIT_TIMESTAMP_STR: ${{ env.COMMIT_TIMESTAMP_STR }}
         run: |
           python - <<EOF
           import os
           import yagmail
           import html
+          import sys
 
-          user = os.environ["EMAIL_USER"]
-          password = os.environ["EMAIL_PASS"]
-          recipients_raw = os.environ["EMAIL_RECIPIENTS"]
+          user = os.environ.get("EMAIL_USER")
+          password = os.environ.get("EMAIL_PASS")
+          recipients_raw = os.environ.get("EMAIL_RECIPIENTS")
           recipients = [r.strip() for r in recipients_raw.split(",") if r.strip()]
 
           if not recipients:
-              print("🛑 No recipients configured, exiting.")
-              exit(0)
+              print("INFO: No recipients configured, skipping email.")
+              sys.exit(0)
           if not user or not password:
-              print("🛑 Email credentials (EMAIL_USER or EMAIL_PASS) not set, exiting.")
-              exit(1)
+              print("ERROR: Email credentials (EMAIL_USER or EMAIL_PASS) not set.")
+              sys.exit(1)
 
           repo_full_name = os.environ.get("GITHUB_REPOSITORY", "unknown/repo")
           commit_sha = os.environ.get("GITHUB_SHA", "unknownsha")
+          commit_sha_short = os.environ.get("COMMIT_SHA_SHORT_STR", "N/A")
           server_url = os.environ.get("GITHUB_SERVER_URL", "https://github.com")
 
           files_str = os.environ.get("COMMIT_FILES_STR", "")
@@ -140,39 +147,47 @@ jobs:
           commit_author = os.environ.get("COMMIT_AUTHOR_STR", "N/A")
           commit_timestamp = os.environ.get("COMMIT_TIMESTAMP_STR", "N/A")
 
+          # Ensure commit message is properly handled (strip whitespace)
           commit_message = commit_message_raw.strip()
-          commit_subject_line = commit_message.splitlines()[0] if commit_message.splitlines() else "N/A"
+          # Escape HTML characters in the commit message for safe rendering
+          commit_message_escaped = html.escape(commit_message)
 
+          # Determine subject line (first line of commit message)
+          commit_subject_line = commit_message.splitlines()[0].strip() if commit_message.splitlines() else "(no subject)"
+
+          # Prepare list of changed files HTML
           changed_files = [f.strip() for f in files_str.split(',') if f.strip()]
-          file_blob_links = [f"{server_url}/{repo_full_name}/blob/{commit_sha}/{file}" for file in changed_files]
-
           if changed_files:
-              list_items_html = "\\n".join(
-                  f"""<li style='margin-bottom:8px;'><a href='{blob_url}' style='color:#0969da;text-decoration:none;'>{file_name}</a></li>"""
-                  for file_name, blob_url in zip(changed_files, file_blob_links)
+              list_items_html = "\n".join(
+                  f'<li><a href="{server_url}/{repo_full_name}/blob/{commit_sha}/{file}">{html.escape(file)}</a></li>'
+                  for file in changed_files
               )
           else:
-              list_items_html = "<li style='color:#555;'>No files were changed in this commit.</li>"
+              list_items_html = "<li>No files were changed in this commit.</li>"
 
-          # Load HTML template from secret and format it
+          # Load HTML template from environment variable
           html_template = os.environ["EMAIL_HTML_TEMPLATE"]
-          html_body = html_template.format(
-              repo_full_name=repo_full_name,
-              commit_author=commit_author,
-              commit_timestamp=commit_timestamp,
-              commit_sha=commit_sha,
-              server_url=server_url,
-              commit_message=html.escape(commit_message),
-              list_items_html=list_items_html
-          )
-          # Fix doubled curly braces for CSS
-          html_body = html_body.replace('{{', '{').replace('}}', '}')
 
-          email_subject = f"🚀 Commit Update: {repo_full_name} - {commit_subject_line[:60]}"
+          # Format the HTML body
+          html_body = html_template.format(
+              repo_full_name=html.escape(repo_full_name),
+              commit_author=html.escape(commit_author),
+              commit_timestamp=html.escape(commit_timestamp),
+              commit_sha=html.escape(commit_sha),
+              commit_sha_short=html.escape(commit_sha_short),
+              server_url=html.escape(server_url),
+              commit_message=commit_message_escaped, # Already escaped
+              list_items_html=list_items_html # Contains HTML, do not escape
+          )
+
+          # Construct email subject
+          email_subject = f"Commit to {repo_full_name}: {commit_subject_line[:60]}"
           if len(commit_subject_line) > 60:
               email_subject += "..."
 
+          # Send the email
           try:
+              print(f"Attempting to send email to: {', '.join(recipients)}")
               yag = yagmail.SMTP(user=user, password=password)
               yag.send(to=recipients, subject=email_subject, contents=html_body)
               print("✅ Email sent successfully!")
@@ -180,5 +195,6 @@ jobs:
               print(f"❌ Failed to send email: {str(e)}")
               import traceback
               traceback.print_exc()
-              exit(1)
+              sys.exit(1)
           EOF
+
