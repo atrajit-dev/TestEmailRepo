@@ -26,65 +26,199 @@ jobs:
       - name: Get Commit Metadata and Changed Files
         id: meta
         run: |
-          echo "FILES=$(git show --pretty='' --name-only | paste -sd ',' -)" >> $GITHUB_OUTPUT
-          echo "COMMIT_MESSAGE=$(git log -1 --pretty=%B)" >> $GITHUB_OUTPUT
-          echo "AUTHOR=$(git log -1 --pretty=format:'%an')" >> $GITHUB_OUTPUT
-          echo "TIMESTAMP=$(git log -1 --pretty=format:'%cd' --date=iso)" >> $GITHUB_OUTPUT
+          # Set environment variables for the Python script
+          echo "COMMIT_FILES_STR=$(git show --pretty='' --name-only HEAD | paste -sd ',' -)" >> $GITHUB_ENV
+          echo "COMMIT_MESSAGE_STR<<EOF_MSG" >> $GITHUB_ENV
+          git log -1 --pretty=%B HEAD >> $GITHUB_ENV
+          echo "EOF_MSG" >> $GITHUB_ENV
+          echo "COMMIT_AUTHOR_STR=$(git log -1 --pretty=format:'%an' HEAD)" >> $GITHUB_ENV
+          echo "COMMIT_TIMESTAMP_STR=$(git log -1 --pretty=format:'%ad' --date=format:'%Y-%m-%d %H:%M:%S %Z' HEAD)" >> $GITHUB_ENV
+
+          # Set outputs for other potential steps (optional if only Python script uses them)
+          echo "FILES_OUTPUT=$(git show --pretty='' --name-only HEAD | paste -sd ',' -)" >> $GITHUB_OUTPUT
+          echo "COMMIT_MESSAGE_OUTPUT<<EOF_MSG_OUT" >> $GITHUB_OUTPUT
+          git log -1 --pretty=%B HEAD >> $GITHUB_OUTPUT
+          echo "EOF_MSG_OUT" >> $GITHUB_OUTPUT
+          echo "AUTHOR_OUTPUT=$(git log -1 --pretty=format:'%an' HEAD)" >> $GITHUB_OUTPUT
+          echo "TIMESTAMP_OUTPUT=$(git log -1 --pretty=format:'%ad' --date=format:'%Y-%m-%d %H:%M:%S %Z' HEAD)" >> $GITHUB_OUTPUT
+        shell: bash
 
       - name: Send Email
         env:
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
           EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
           EMAIL_RECIPIENTS: ${{ secrets.EMAIL_RECIPIENTS }}
+          # GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Not used in this version, but good to remember if API calls were needed
         run: |
           import os
           import yagmail
+          import html # For escaping, if needed, though <pre> handles much for commit messages
 
+          # Sender and recipient details from secrets
           user = os.environ["EMAIL_USER"]
           password = os.environ["EMAIL_PASS"]
           recipients_raw = os.environ["EMAIL_RECIPIENTS"]
           recipients = [r.strip() for r in recipients_raw.split(",") if r.strip()]
 
-          repo = os.environ["GITHUB_REPOSITORY"]
-          commit = os.environ["GITHUB_SHA"]
-          files = "${{ steps.meta.outputs.FILES }}".split(',')
-          message = """${{ steps.meta.outputs.COMMIT_MESSAGE }}""".strip()
-          author = "${{ steps.meta.outputs.AUTHOR }}"
-          timestamp = "${{ steps.meta.outputs.TIMESTAMP }}"
-
-          if not files or files == ['']:
-              print("🛑 No files changed, exiting.")
+          if not recipients:
+              print("🛑 No recipients configured, exiting.")
               exit(0)
+          if not user or not password:
+              print("🛑 Email credentials (EMAIL_USER or EMAIL_PASS) not set, exiting.")
+              exit(1)
 
-          raw_links = [
-              f"https://raw.githubusercontent.com/{repo}/{commit}/{file}" for file in files
+          # GitHub context variables (automatically available)
+          repo_full_name = os.environ["GITHUB_REPOSITORY"]
+          commit_sha = os.environ["GITHUB_SHA"]
+          server_url = os.environ.get("GITHUB_SERVER_URL", "https://github.com") # e.g. https://github.com or for GHE
+
+          # Metadata from environment variables set in the previous step
+          files_str = os.environ.get("COMMIT_FILES_STR", "")
+          commit_message_raw = os.environ.get("COMMIT_MESSAGE_STR", "No commit message found.")
+          commit_author = os.environ.get("COMMIT_AUTHOR_STR", "N/A")
+          commit_timestamp = os.environ.get("COMMIT_TIMESTAMP_STR", "N/A")
+
+          # Process commit message (strip extra whitespace)
+          commit_message = commit_message_raw.strip()
+          commit_subject_line = commit_message.splitlines()[0] if commit_message.splitlines() else "N/A"
+
+
+          # Process changed files
+          changed_files = [f.strip() for f in files_str.split(',') if f.strip()]
+
+          if not changed_files:
+              print("ℹ️ No files changed in this commit. Email will indicate this.")
+              # You could choose to exit here if no email is desired for empty commits:
+              # print("🛑 No files changed, exiting.")
+              # exit(0)
+
+          # Generate links to view files on GitHub (blob view)
+          file_blob_links = [
+              f"{server_url}/{repo_full_name}/blob/{commit_sha}/{file}" for file in changed_files
           ]
 
-          list_items = "\n".join(
-              f"<li><strong>{file}</strong>: <a href='{url}'>{url}</a></li>"
-              for file, url in zip(files, raw_links)
-          )
+          # Create HTML list items for changed files
+          if changed_files:
+              list_items_html = "\n".join(
+                  f"""<li style="margin-bottom: 10px; padding: 10px; background-color: #f8f9fa; border-radius: 5px; border-left: 4px solid #007bff; display: flex; align-items: center;">
+                         <a href='{blob_url}' style="text-decoration: none; color: #0056b3; font-weight: 500; font-size: 15px; word-break: break-all;" target="_blank" rel="noopener noreferrer">{file_name}</a>
+                     </li>"""
+                  for file_name, blob_url in zip(changed_files, file_blob_links)
+              )
+          else:
+              list_items_html = "<li style='padding: 10px; background-color: #f8f9fa; border-radius: 5px; color: #555;'>No files were changed in this commit.</li>"
 
+
+          # Construct the HTML email body
           html_body = f"""
-          <h2>🚀 New Commit in <code>{repo}</code></h2>
-          <p><strong>Author:</strong> {author}<br>
-             <strong>Date:</strong> {timestamp}<br>
-             <strong>Message:</strong> {message}</p>
-          <h3>📂 Changed Files:</h3>
-          <ul>{list_items}</ul>
-          <p><em>This is an automated notification from GitHub Actions.</em></p>
-          """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Commit Notification: {repo_full_name}</title>
+<style>
+  body {{ margin: 0; padding: 0; width: 100% !important; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; background-color: #f0f2f5; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol"; }}
+  table {{ border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt; }}
+  .main-container {{ width: 100%; max-width: 680px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,0.06); }}
+  .header {{ background-color: #24292e; color: #ffffff; padding: 24px; text-align: left; border-top-left-radius: 8px; border-top-right-radius: 8px; }}
+  .header h1 {{ margin: 0; font-size: 24px; font-weight: 600; line-height: 1.3; }}
+  .header-repo-name {{ font-size: 0.8em; background-color: #4a5056; padding: 4px 8px; border-radius: 4px; font-weight: normal; }}
+  .content {{ padding: 28px 32px; }}
+  .content h2 {{ font-size: 20px; color: #1f2328; margin-top: 0; margin-bottom: 18px; border-bottom: 1px solid #e1e4e8; padding-bottom: 12px; font-weight: 600; }}
+  .commit-meta p {{ font-size: 15px; color: #444c56; line-height: 1.65; margin: 8px 0; }}
+  .commit-meta strong {{ color: #1f2328; min-width: 90px; display: inline-block; font-weight: 500; }}
+  .commit-message-container {{ margin-top: 12px; }}
+  .commit-message-container strong {{ display: block; margin-bottom: 8px; font-size: 15px; color: #1f2328; font-weight: 500; }}
+  .commit-message pre {{ background-color: #f6f8fa; border: 1px solid #d0d7de; padding: 16px; border-radius: 6px; white-space: pre-wrap; word-wrap: break-word; font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace; font-size: 14px; color: #24292e; max-height: 300px; overflow-y: auto; margin-top: 0; }}
+  .file-list {{ list-style-type: none; padding-left: 0; margin-top: 0; }}
+  .footer {{ padding: 24px 32px; text-align: center; font-size: 13px; color: #57606a; border-top: 1px solid #e1e4e8; background-color: #f6f8fa; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; }}
+  .footer a {{ color: #0969da; text-decoration: none; font-weight: 500; }}
+  .footer a:hover {{ text-decoration: underline; }}
+  .button {{ background-color: #2ea44f; color: #ffffff; padding: 12px 20px; text-decoration: none; border-radius: 6px; display: inline-block; margin-top: 15px; font-weight: 500; font-size: 15px; }}
+  .button:hover {{ background-color: #2c974b; }}
+</style>
+</head>
+<body>
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f0f2f5;">
+    <tr>
+      <td align="center" style="padding: 30px 10px;">
+        <table class="main-container" width="680" border="0" cellspacing="0" cellpadding="0">
+          <tr>
+            <td class="header">
+              <h1 style="margin: 0; font-size: 24px; font-weight: 600; line-height: 1.3; color: #ffffff;">🚀 New Commit Published</h1>
+            </td>
+          </tr>
+          <tr>
+            <td class="content" style="padding-bottom: 0;">
+                 <p style="font-size: 18px; color: #1f2328; margin-bottom:20px; margin-top:0; font-weight:500;">Repository: <code style="font-size: 0.9em; background-color: #eaeef2; padding: 4px 8px; border-radius: 6px; color: #1f2328;">{repo_full_name}</code></p>
+            </td>
+          </tr>
+          <tr>
+            <td class="content">
+              <h2 style="font-size: 20px; color: #1f2328; margin-top: 0; margin-bottom: 18px; border-bottom: 1px solid #e1e4e8; padding-bottom: 12px; font-weight: 600;">Commit Information</h2>
+              <div class="commit-meta">
+                <p style="font-size: 15px; color: #444c56; line-height: 1.65; margin: 8px 0;"><strong style="color: #1f2328; min-width: 90px; display: inline-block; font-weight: 500;">Author:</strong> {commit_author}</p>
+                <p style="font-size: 15px; color: #444c56; line-height: 1.65; margin: 8px 0;"><strong style="color: #1f2328; min-width: 90px; display: inline-block; font-weight: 500;">Date:</strong> {commit_timestamp}</p>
+                <p style="font-size: 15px; color: #444c56; line-height: 1.65; margin: 8px 0;"><strong style="color: #1f2328; min-width: 90px; display: inline-block; font-weight: 500;">SHA:</strong>
+                  <a href="{server_url}/{repo_full_name}/commit/{commit_sha}" style="color: #0969da; text-decoration: none; font-weight: 500;" target="_blank" rel="noopener noreferrer">{commit_sha[:12]}...</a>
+                </p>
+                <div class="commit-message-container" style="margin-top: 12px;">
+                  <strong style="display: block; margin-bottom: 8px; font-size: 15px; color: #1f2328; font-weight: 500;">Commit Message:</strong>
+                  <pre class="commit-message" style="background-color: #f6f8fa; border: 1px solid #d0d7de; padding: 16px; border-radius: 6px; white-space: pre-wrap; word-wrap: break-word; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace; font-size: 14px; color: #24292e; max-height: 300px; overflow-y: auto; margin-top: 0;">{html.escape(commit_message)}</pre>
+                </div>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td class="content" style="padding-top: 10px;">
+              <h2 style="font-size: 20px; color: #1f2328; margin-top: 0; margin-bottom: 18px; border-bottom: 1px solid #e1e4e8; padding-bottom: 12px; font-weight: 600;">📂 Changed Files</h2>
+              <ul class="file-list" style="list-style-type: none; padding-left: 0; margin-top: 0;">
+                {list_items_html}
+              </ul>
+              <div style="text-align: center; margin-top: 25px; margin-bottom: 10px;">
+                 <a href="{server_url}/{repo_full_name}/commit/{commit_sha}" class="button" style="background-color: #2ea44f; color: #ffffff !important; padding: 12px 20px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 500; font-size: 15px;" target="_blank" rel="noopener noreferrer">View Commit Details on GitHub</a>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td class="footer">
+              <p style="margin: 0 0 5px 0;">This is an automated notification from GitHub Actions.</p>
+              <p style="margin: 0;">View <a href="{server_url}/{repo_full_name}" style="color: #0969da; text-decoration: none; font-weight: 500;" target="_blank" rel="noopener noreferrer">{repo_full_name}</a> on GitHub.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+"""
 
-          print("📬 Prepared to send email to:", recipients)
-          print("✉️ Subject:", f"GitHub Commit Update: {repo}")
-          print("📄 Files to be included:")
-          for file, link in zip(files, raw_links):
-              print(f"  - {file}: {link}")
+          email_subject = f"🚀 Commit Update: {repo_full_name} - {commit_subject_line[:60]}"
+          if len(commit_subject_line) > 60:
+              email_subject += "..."
+
+          print(f"📬 Prepared to send email to: {recipients}")
+          print(f"✉️ Subject: {email_subject}")
+          if changed_files:
+              print("📄 Files changed:")
+              for file_name, link in zip(changed_files, file_blob_links):
+                  print(f"  - {file_name}: {link}")
+          else:
+              print("📄 No files changed in this commit.")
 
           try:
               yag = yagmail.SMTP(user=user, password=password)
-              yag.send(to=recipients, subject=f"GitHub Commit Update: {repo}", contents=html_body)
+              yag.send(
+                  to=recipients,
+                  subject=email_subject,
+                  contents=html_body # yagmail is smart enough to send this as HTML
+              )
               print("✅ Email sent successfully!")
           except Exception as e:
-              print("❌ Failed to send email:", str(e))
+              print(f"❌ Failed to send email: {str(e)}")
+              import traceback
+              traceback.print_exc() # Print full traceback for debugging in Actions logs
+              exit(1) # Exit with error code
         shell: python
