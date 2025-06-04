@@ -50,6 +50,7 @@ jobs:
           from email.mime.text import MIMEText
           from email.mime.multipart import MIMEMultipart
           import html
+          from string import Template
 
           EMAIL_HOST = os.environ['EMAIL_HOST']
           EMAIL_PORT = int(os.environ['EMAIL_PORT'])
@@ -77,11 +78,11 @@ jobs:
               for name, url in zip(changed_files, file_blob_links)
           ) or "<li>No files were changed in this commit.</li>"
 
-          # Load template
+          # Load template using string.Template
           with open("html-template.html", "r", encoding="utf-8") as file:
-              html_template = file.read()
+              html_template = Template(file.read())
 
-          html_content = html_template.format(
+          html_content = html_template.safe_substitute(
               repo_full_name=repo_full_name,
               commit_author=commit_author,
               commit_timestamp=commit_timestamp,
@@ -111,4 +112,3 @@ jobs:
               traceback.print_exc()
               exit(1)
           EOF
-              echo "Email sent successfully!"
