@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install yagmail
+      - name: Install Requirements
         run: pip install yagmail
 
       - name: Get Commit Metadata and Changed Files
@@ -32,164 +32,82 @@ jobs:
           echo "COMMIT_AUTHOR_STR=$(git log -1 --pretty=format:'%an' HEAD)" >> $GITHUB_ENV
           echo "COMMIT_TIMESTAMP_STR=$(git log -1 --pretty=format:'%ad' --date=format:'%Y-%m-%d %H:%M:%S %Z' HEAD)" >> $GITHUB_ENV
 
-      - name: Send Email
+      - name: Send Email with HTML Template
         env:
+          EMAIL_HOST: ${{ secrets.EMAIL_HOST }}
+          EMAIL_PORT: ${{ secrets.EMAIL_PORT }}
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
-          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASS }}
           EMAIL_RECIPIENTS: ${{ secrets.EMAIL_RECIPIENTS }}
-          EMAIL_HTML_TEMPLATE: |
-            <!DOCTYPE html>
-            <html lang="en">
-            <head>
-              <meta charset="UTF-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <title>New Commit Notification</title>
-              <style>
-                @media only screen and (max-width: 600px) {
-                  .main-table { width: 98% !important; }
-                  .inner-table { width: 100% !important; padding: 0 !important; }
-                  .header-cell, .meta-cell, .content-cell, .footer-cell { padding-left: 10px !important; padding-right: 10px !important; }
-                  .logo-img { width: 28px !important; height: 28px !important; }
-                  .repo-title { font-size: 1.1em !important; }
-                  .commit-msg { font-size: 0.98em !important; }
-                  .cta-btn { font-size: 0.98em !important; padding: 10px 16px !important; }
-                }
-              </style>
-            </head>
-            <body style="margin:0;padding:0;background:#f6f8fa;font-family:Segoe UI,Tahoma,Geneva,Verdana,sans-serif;">
-              <table class="main-table" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f6f8fa;padding:18px 0;">
-                <tr>
-                  <td align="center">
-                    <table class="inner-table" width="420" cellpadding="0" cellspacing="0" border="0" style="background:#fff;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,0.07);padding:0 0 18px 0;">
-                      <tr>
-                        <td class="header-cell" style="padding:18px 18px 0 18px;">
-                          <table width="100%" cellpadding="0" cellspacing="0" border="0">
-                            <tr>
-                              <td align="left" valign="middle" style="font-size:0;">
-                                <img class="logo-img" src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub" width="28" height="28" style="vertical-align:middle;display:inline-block;">
-                                <span class="repo-title" style="font-size:1.1em;font-weight:600;color:#24292e;vertical-align:middle;margin-left:7px;display:inline-block;">{repo_full_name}</span>
-                              </td>
-                              <td align="right" valign="middle">
-                                <img src="https://avatars.githubusercontent.com/atrajit-dev" alt="Your Logo" width="28" height="28" style="border-radius:6px;vertical-align:middle;">
-                              </td>
-                            </tr>
-                          </table>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td class="meta-cell" style="padding:10px 18px 0 18px;">
-                          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f6f8fa;border-radius:6px;">
-                            <tr>
-                              <td style="padding:8px 12px;color:#586069;font-size:0.98em;">
-                                <strong>Author:</strong> {commit_author} &nbsp;|&nbsp;
-                                <strong>Date:</strong> {commit_timestamp}<br>
-                                <strong>SHA:</strong> <a href="{server_url}/{repo_full_name}/commit/{commit_sha}" style="color:#0969da;text-decoration:none;">{commit_sha}</a>
-                              </td>
-                            </tr>
-                          </table>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td class="content-cell" style="padding:16px 18px 0 18px;">
-                          <div style="font-size:1em;color:#24292e;font-weight:600;margin-bottom:7px;">Commit Message</div>
-                          <div class="commit-msg" style="background:#f6f8fa;border-radius:6px;padding:10px 12px;font-family:'Courier New',monospace;color:#24292e;border-left:4px solid #0969da;font-size:1em;">{commit_message}</div>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td class="content-cell" style="padding:16px 18px 0 18px;">
-                          <div style="font-size:1em;color:#24292e;font-weight:600;margin-bottom:7px;"><span style="font-size:1.1em;vertical-align:middle;">&#128193;</span> Changed Files</div>
-                          <hr style="border:none;border-top:1px solid #eaecef;margin:7px 0 10px 0;">
-                          <div style="font-size:0.97em;">{list_items_html}</div>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td class="content-cell" style="padding:16px 18px 0 18px;">
-                          <a href="{server_url}/{repo_full_name}/commit/{commit_sha}" class="cta-btn" style="display:inline-block;background:#2ea44f;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:500;text-align:center;font-size:1em;">View Commit on GitHub</a>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td class="footer-cell" style="padding:22px 18px 0 18px;text-align:center;color:#6a737d;font-size:0.93em;">
-                          <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub" width="18" height="18" style="vertical-align:middle;margin-right:5px;">
-                          This is an automated notification from your GitHub Actions workflow.
-                        </td>
-                      </tr>
-                      <tr><td height="10"></td></tr>
-                    </table>
-                  </td>
-                </tr>
-              </table>
-            </body>
-            </html>
           COMMIT_FILES_STR: ${{ env.COMMIT_FILES_STR }}
           COMMIT_MESSAGE_STR: ${{ env.COMMIT_MESSAGE_STR }}
           COMMIT_AUTHOR_STR: ${{ env.COMMIT_AUTHOR_STR }}
           COMMIT_TIMESTAMP_STR: ${{ env.COMMIT_TIMESTAMP_STR }}
         run: |
-          python - <<EOF
-          import os
-          import yagmail
-          import html
+          python <<EOF
+import os
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+import html
 
-          user = os.environ["EMAIL_USER"]
-          password = os.environ["EMAIL_PASS"]
-          recipients_raw = os.environ["EMAIL_RECIPIENTS"]
-          recipients = [r.strip() for r in recipients_raw.split(",") if r.strip()]
+EMAIL_HOST = os.environ['EMAIL_HOST']
+EMAIL_PORT = int(os.environ['EMAIL_PORT'])
+EMAIL_USER = os.environ['EMAIL_USER']
+EMAIL_PASSWORD = os.environ['EMAIL_PASSWORD']
+recipients = [r.strip() for r in os.environ['EMAIL_RECIPIENTS'].split(',') if r.strip()]
 
-          if not recipients:
-              print("🛑 No recipients configured, exiting.")
-              exit(0)
-          if not user or not password:
-              print("🛑 Email credentials (EMAIL_USER or EMAIL_PASS) not set, exiting.")
-              exit(1)
+repo_full_name = os.environ.get('GITHUB_REPOSITORY', 'unknown/repo')
+commit_sha = os.environ.get('GITHUB_SHA', 'unknownsha')
+server_url = os.environ.get('GITHUB_SERVER_URL', 'https://github.com')
 
-          repo_full_name = os.environ.get("GITHUB_REPOSITORY", "unknown/repo")
-          commit_sha = os.environ.get("GITHUB_SHA", "unknownsha")
-          server_url = os.environ.get("GITHUB_SERVER_URL", "https://github.com")
+files_str = os.environ.get('COMMIT_FILES_STR', '')
+commit_message = os.environ.get('COMMIT_MESSAGE_STR', 'No commit message found.').strip()
+commit_author = os.environ.get('COMMIT_AUTHOR_STR', 'N/A')
+commit_timestamp = os.environ.get('COMMIT_TIMESTAMP_STR', 'N/A')
+commit_subject = commit_message.splitlines()[0] if commit_message.splitlines() else "Commit Update"
 
-          files_str = os.environ.get("COMMIT_FILES_STR", "")
-          commit_message_raw = os.environ.get("COMMIT_MESSAGE_STR", "No commit message found.")
-          commit_author = os.environ.get("COMMIT_AUTHOR_STR", "N/A")
-          commit_timestamp = os.environ.get("COMMIT_TIMESTAMP_STR", "N/A")
+# Process changed files
+changed_files = [f.strip() for f in files_str.split(',') if f.strip()]
+file_blob_links = [
+    f"{server_url}/{repo_full_name}/blob/{commit_sha}/{file}" for file in changed_files
+]
+list_items_html = "\\n".join(
+    f"<li><a href='{url}' target='_blank'>{html.escape(name)}</a></li>"
+    for name, url in zip(changed_files, file_blob_links)
+) or "<li>No files were changed in this commit.</li>"
 
-          commit_message = commit_message_raw.strip()
-          commit_subject_line = commit_message.splitlines()[0] if commit_message.splitlines() else "N/A"
+# Load template
+with open("html-template.html", "r", encoding="utf-8") as file:
+    html_template = file.read()
 
-          changed_files = [f.strip() for f in files_str.split(',') if f.strip()]
-          file_blob_links = [f"{server_url}/{repo_full_name}/blob/{commit_sha}/{file}" for file in changed_files]
+html_content = html_template.format(
+    repo_full_name=repo_full_name,
+    commit_author=commit_author,
+    commit_timestamp=commit_timestamp,
+    commit_sha=commit_sha,
+    server_url=server_url,
+    commit_message=html.escape(commit_message),
+    list_items_html=list_items_html
+)
 
-          if changed_files:
-              list_items_html = "\\n".join(
-                  f"""<li style='margin-bottom:8px;'><a href='{blob_url}' style='color:#0969da;text-decoration:none;'>{file_name}</a></li>"""
-                  for file_name, blob_url in zip(changed_files, file_blob_links)
-              )
-          else:
-              list_items_html = "<li style='color:#555;'>No files were changed in this commit.</li>"
+# Create email
+msg = MIMEMultipart()
+msg['From'] = EMAIL_USER
+msg['To'] = ", ".join(recipients)
+msg['Subject'] = f"🚀 Commit: {commit_subject[:60]}{'...' if len(commit_subject) > 60 else ''}"
+msg.attach(MIMEText(html_content, 'html'))
 
-          # Load HTML template from secret and format it
-          html_template = os.environ["EMAIL_HTML_TEMPLATE"]
-          html_body = html_template.format(
-              repo_full_name=repo_full_name,
-              commit_author=commit_author,
-              commit_timestamp=commit_timestamp,
-              commit_sha=commit_sha,
-              server_url=server_url,
-              commit_message=html.escape(commit_message),
-              list_items_html=list_items_html
-          )
-          # Fix doubled curly braces for CSS
-          html_body = html_body.replace('{{', '{').replace('}}', '}')
-
-          email_subject = f"🚀 Commit Update: {repo_full_name} - {commit_subject_line[:60]}"
-          if len(commit_subject_line) > 60:
-              email_subject += "..."
-
-          try:
-              yag = yagmail.SMTP(user=user, password=password)
-              yag.send(to=recipients, subject=email_subject, contents=html_body)
-              print("✅ Email sent successfully!")
-          except Exception as e:
-              print(f"❌ Failed to send email: {str(e)}")
-              import traceback
-              traceback.print_exc()
-              exit(1)
-          EOF
+# Send email
+try:
+    with smtplib.SMTP(EMAIL_HOST, EMAIL_PORT) as server:
+        server.starttls()
+        server.login(EMAIL_USER, EMAIL_PASSWORD)
+        server.sendmail(EMAIL_USER, recipients, msg.as_string())
+    print("✅ Email sent successfully!")
+except Exception as e:
+    print(f"❌ Failed to send email: {e}")
+    import traceback
+    traceback.print_exc()
+    exit(1)
+EOF
