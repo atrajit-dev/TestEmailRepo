@@ -3,7 +3,7 @@ name: Email on Commit
 on:
   push:
     branches:
-      - main  # Or your default branch
+      - main
 
 jobs:
   send-email:
@@ -33,13 +33,16 @@ jobs:
         env:
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
           EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+          EMAIL_RECIPIENTS: ${{ secrets.EMAIL_RECIPIENTS }}
         run: |
           import os
           import yagmail
 
           user = os.environ["EMAIL_USER"]
           password = os.environ["EMAIL_PASS"]
-          recipient = "usatest45@gmail.com"
+          recipients_raw = os.environ["EMAIL_RECIPIENTS"]
+
+          recipients = [r.strip() for r in recipients_raw.split(",") if r.strip()]
 
           repo = os.environ["GITHUB_REPOSITORY"]
           commit = os.environ["GITHUB_SHA"]
@@ -71,5 +74,5 @@ jobs:
           """
 
           yag = yagmail.SMTP(user=user, password=password)
-          yag.send(to=recipient, subject=f"GitHub Commit Update: {repo}", contents=html_body)
+          yag.send(to=recipients, subject=f"GitHub Commit Update: {repo}", contents=html_body)
         shell: python
