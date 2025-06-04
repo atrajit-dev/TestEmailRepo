@@ -37,30 +37,30 @@
     <div class="header">
       <div class="logo-container">
         <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub" />
-        <span class="repo">{repo_full_name}</span>
+        <span class="repo">$repo_full_name</span>
       </div>
       <img class="company-logo" src="https://avatars.githubusercontent.com/atrajit-dev" alt="Your Logo" />
     </div>
     
     <div class="meta">
-      <strong>Author:</strong> {commit_author} &nbsp;|&nbsp;
-      <strong>Date:</strong> {commit_timestamp} <br>
-      <strong>SHA:</strong> <a href="{server_url}/{repo_full_name}/commit/{commit_sha}">{commit_sha}</a>
+      <strong>Author:</strong> $commit_author &nbsp;|&nbsp;
+      <strong>Date:</strong> $commit_timestamp <br>
+      <strong>SHA:</strong> <a href="$server_url/$repo_full_name/commit/$commit_sha">$commit_sha</a>
     </div>
     
     <div>
       <h3 class="section-title">Commit Message</h3>
-      <div class="commit-msg">{commit_message}</div>
+      <div class="commit-msg">$commit_message</div>
     </div>
     
     <div>
       <h3 class="section-title">📂 Changed Files</h3>
       <ul class="files-list">
-        {list_items_html}
+        $list_items_html
       </ul>
     </div>
     
-    <a class="cta-btn" href="{server_url}/{repo_full_name}/commit/{commit_sha}">View Commit on GitHub</a>
+    <a class="cta-btn" href="$server_url/$repo_full_name/commit/$commit_sha">View Commit on GitHub</a>
     
     <div class="footer">
       <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub" />
